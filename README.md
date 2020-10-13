@@ -35,12 +35,11 @@
 ## Install
 
 
-```python
+```
 # MXNet은 [링크](https://mxnet.apache.org/get_started?)를 참고하여 시스템에 맞는 버전으로 설치한다.
 pip3 install mxnet-cuXX
 pip3 install gluonnlp sentencepiece pandas torch transformers pytorch_lightning 
 pip3 install git+https://github.com/SKT-AI/KoGPT2#egg=kogpt2
-git clone --recurse-submodules https://github.com/haven-jeon/KoGPT2-chatbot.git
 ```
 
 ## How to Train
