@@ -5,7 +5,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from kogpt2_chat import KoGPT2Chat, get_kogpt2_args
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
