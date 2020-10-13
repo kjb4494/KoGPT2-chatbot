@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import argparse
 import logging
 
@@ -10,35 +9,9 @@ from gluonnlp.data import SentencepieceTokenizer
 from kogpt2.pytorch_kogpt2 import get_pytorch_kogpt2_model
 from kogpt2.utils import get_tokenizer
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.core.lightning import LightningModule
 from torch.utils.data import DataLoader, Dataset
 from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
-
-parser = argparse.ArgumentParser(description='Simsimi based on KoGPT-2')
-
-parser.add_argument('--chat',
-                    action='store_true',
-                    default=False,
-                    help='response generation on given user input')
-
-parser.add_argument('--sentiment',
-                    type=str,
-                    default='0',
-                    help='sentiment for system. 0 is neutral, 1 is negative, 2 is positive.')
-
-parser.add_argument('--model_params',
-                    type=str,
-                    default='model_chp/model_last.ckpt',
-                    help='model binary for starting chat')
-
-parser.add_argument('--train',
-                    action='store_true',
-                    default=False,
-                    help='for training')
-
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
 
 U_TKN = '<usr>'
 S_TKN = '<sys>'
@@ -46,6 +19,34 @@ BOS = '<s>'
 EOS = '</s>'
 MASK = '<unused0>'
 SENT = '<unused1>'
+
+
+def get_kogpt2_args(model_path='model_chp/model_last.ckpt', is_train=False, is_chat=False):
+    parser = argparse.ArgumentParser(description='KoGPT-2 Chat Test')
+    parser.add_argument('--sentiment',
+                        type=str,
+                        default='0',
+                        help='sentiment for system. 0 is neutral, 1 is negative, 2 is positive.')
+
+    parser.add_argument('--model_params',
+                        type=str,
+                        default=model_path,
+                        help='model binary for starting chat')
+
+    parser.add_argument('--train',
+                        action='store_true',
+                        default=is_train,
+                        help='for training')
+
+    parser.add_argument('--chat',
+                        action='store_true',
+                        default=is_chat,
+                        help='response generation on given user input')
+
+    parser = KoGPT2Chat.add_model_specific_args(parser)
+    parser = Trainer.add_argparse_args(parser)
+    args = parser.parse_args()
+    return args
 
 
 class CharDataset(Dataset):
@@ -79,23 +80,23 @@ class CharDataset(Dataset):
         a = turn['A']
         sentiment = str(turn['label'])
         q_toked = [
-            self.q_token,
-        ] + self.tokenizer(q) + [
-            self.eos,
-        ] + [self.sent_token] + self.tokenizer(sentiment) + [
-            self.eos,
-        ]
+                      self.q_token,
+                  ] + self.tokenizer(q) + [
+                      self.eos,
+                  ] + [self.sent_token] + self.tokenizer(sentiment) + [
+                      self.eos,
+                  ]
         q_len = len(q_toked)
         a_toked = [
-            self.a_token,
-        ] + self.tokenizer(a) + [
-            self.eos,
-        ]
+                      self.a_token,
+                  ] + self.tokenizer(a) + [
+                      self.eos,
+                  ]
         a_len = len(a_toked)
         if q_len + a_len > self.max_len:
             a_len = self.max_len - q_len
             if a_len <= 0:
-                q_toked = q_toked[-(int(self.max_len/2)):]
+                q_toked = q_toked[-(int(self.max_len / 2)):]
                 q_len = len(q_toked)
                 a_len = self.max_len - q_len
                 assert a_len > 0
@@ -104,8 +105,8 @@ class CharDataset(Dataset):
             assert a_len == len(a_toked), f'{a_len} ==? {len(a_toked)}'
         # [mask, mask, ...., mask, ..., <bos>,..A.. <eos>, <pad>....]
         labels = [
-            self.maskt,
-        ] * q_len + a_toked[1:]
+                     self.maskt,
+                 ] * q_len + a_toked[1:]
         if self.first:
             logging.info("contexts : {}".format(q))
             logging.info("toked ctx: {}".format(q_toked))
@@ -119,6 +120,8 @@ class CharDataset(Dataset):
 
 
 class KoGPT2Chat(LightningModule):
+    train_set = None
+
     def __init__(self, hparams, **kwargs):
         super(KoGPT2Chat, self).__init__()
         self.hparams = hparams
@@ -200,59 +203,23 @@ class KoGPT2Chat(LightningModule):
             shuffle=True, collate_fn=self._collate_fn)
         return train_dataloader
 
-    def chat(self, sent='0'):
-        self.tok_path
+    def chat(self, q, sent='0'):
         tok = SentencepieceTokenizer(self.tok_path, num_best=0, alpha=0)
         sent_tokens = tok(sent)
         with torch.no_grad():
+            q_tok = tok(q)
+            a = ''
+            a_tok = []
             while 1:
-                q = input('user > ').strip()
-                if q == 'quit':
+                input_ids = torch.LongTensor(
+                    [self.vocab[U_TKN]] + self.vocab[q_tok] +
+                    self.vocab[EOS, SENT] + self.vocab[sent_tokens] +
+                    self.vocab[EOS, S_TKN] + self.vocab[a_tok]
+                ).unsqueeze(dim=0)
+                pred = self(input_ids)
+                gen = self.vocab.to_tokens(torch.argmax(pred, dim=-1).squeeze().numpy().tolist())[-1]
+                if gen == EOS:
                     break
-                q_tok = tok(q)
-                a = ''
-                a_tok = []
-                while 1:
-                    input_ids = torch.LongTensor([
-                        self.vocab[U_TKN]] + self.vocab[q_tok] +
-                        self.vocab[EOS, SENT] + self.vocab[sent_tokens] +
-                        self.vocab[EOS, S_TKN] +
-                        self.vocab[a_tok]).unsqueeze(dim=0)
-                    pred = self(input_ids)
-                    gen = self.vocab.to_tokens(
-                        torch.argmax(
-                            pred,
-                            dim=-1).squeeze().numpy().tolist())[-1]
-                    if gen == EOS:
-                        break
-                    a += gen.replace('▁', ' ')
-                    a_tok = tok(a)
-                print("Simsimi > {}".format(a.strip()))
-
-
-parser = KoGPT2Chat.add_model_specific_args(parser)
-parser = Trainer.add_argparse_args(parser)
-args = parser.parse_args()
-logging.info(args)
-
-if __name__ == "__main__":
-    if args.train:
-        checkpoint_callback = ModelCheckpoint(
-            filepath='model_chp/{epoch:02d}-{loss:.2f}',
-            verbose=True,
-            save_last=True,
-            monitor='loss',
-            mode='min',
-            prefix='model_'
-        )
-        # python train_torch.py --train --gpus 1 --max_epochs 3
-        model = KoGPT2Chat(args)
-        model.train()
-        trainer = Trainer.from_argparse_args(
-            args,
-            checkpoint_callback=checkpoint_callback, gradient_clip_val=1.0)
-        trainer.fit(model)
-        logging.info('best model path {}'.format(checkpoint_callback.best_model_path))
-    if args.chat:
-        model = KoGPT2Chat.load_from_checkpoint(args.model_params)
-        model.chat()
+                a += gen.replace('▁', ' ')
+                a_tok = tok(a)
+        return a.strip()
