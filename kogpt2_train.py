@@ -38,12 +38,12 @@ def test_code():
 
     parser = argparse.ArgumentParser(description='KoGPT-2 Test Train')
     parser.add_argument('--gpus',
-                        type=str,
+                        type=int,
                         default='0',
                         help='gpu count for use.')
 
     parser.add_argument('--max_epochs',
-                        type=str,
+                        type=int,
                         default='1',
                         help='max epochs.')
 
