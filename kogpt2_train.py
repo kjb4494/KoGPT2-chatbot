@@ -33,6 +33,28 @@ def train(gpus, max_epochs):
     logging.info('best model path {}'.format(checkpoint_callback.best_model_path))
 
 
+def test_code():
+    import argparse
+
+    parser = argparse.ArgumentParser(description='KoGPT-2 Test Train')
+    parser.add_argument('--gpus',
+                        type=int,
+                        default='0',
+                        help='gpu count for use.')
+
+    parser.add_argument('--max_epochs',
+                        type=int,
+                        default='1',
+                        help='max epochs.')
+
+    args = parser.parse_args()
+
+    train(
+        gpus=args.gpus,
+        max_epochs=args.max_epochs
+    )
+
+
 # test_code
 if __name__ == "__main__":
-    train(gpus=1, max_epochs=2)
+    test_code()

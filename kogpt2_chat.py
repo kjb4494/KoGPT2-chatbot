@@ -22,7 +22,7 @@ SENT = '<unused1>'
 
 
 def get_kogpt2_args(model_path='model_chp/model_last.ckpt', is_train=False, is_chat=False):
-    parser = argparse.ArgumentParser(description='KoGPT-2 Chat Test')
+    parser = argparse.ArgumentParser(description='KoGPT-2 Chat')
     parser.add_argument('--sentiment',
                         type=str,
                         default='0',
